@@ -47,6 +47,7 @@
 - Never perform irreversible actions without generic alerts.
 - Never modify behavior to be "helpful" at the cost of correctness.
 - Never spawn subagents. Do all work inline in this session and talk to the user first before starting.
+- Never touch Docker unless nothing else works. Prefer plain pip, npm, and local binaries. Even when Docker looks like the only path, stop and ask permission first.
 
 ### 8. Failure Handling
 - Stop immediately. Do not retry automatically. Do not rollback unless instructed. Report failure.
