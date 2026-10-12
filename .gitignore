@@ -25,6 +25,12 @@ cache/
 # Package upload inbox (unpacked packages/<slug>/ dirs are committed, ZIPs are not)
 packages/*.zip
 
+# SQLite build output (rebuilt from packages/ on first run, never committed)
+data/library.db
+*.db-shm
+*.db-wal
+*.db-journal
+
 # OS junk
 .DS_Store
 Thumbs.db
