@@ -15,123 +15,116 @@
 
 A collection of remarkable corners of the web. At least visually.
 
-Lookout is a curated archive of websites that stand out for their design, composition, interaction, and aesthetic quality. The goal is simple: collect beautiful digital experiences, preserve them, and make them easy to explore for inspiration.
+Lookout is a local archive and library for visually striking websites. The repository is structured around a small Node-based server, a package manifest, and capture tooling intended to preserve and replay beautiful web experiences for study and inspiration.
+
+This repo is not just a landing page. It is the project skeleton for a visual archive system: metadata, package imports, local replay, and publish/update workflow are all part of the design.
 
 ---
 
-## Demo / Preview
-Add screenshots or a demo GIF under `assets/` and reference them here:
+## What is in this repo
 
-![Preview](assets/preview.png)
+- `server.js` — the local library server and JSON API
+- `docs/spec.md` — architecture and capture pipeline for the archive
+- `packages/` — package manifest and per-entry package data
+- `scripts/` — database rebuild, WACZ rebuild, and publish utilities
+- `assets/logo/` — brand/logo assets
+- `LOCALHOST.md` — explanation of how localhost/server behavior works
+- `AGENTS.md` — operating contract and session rules
 
 ---
 
-## Features
+## Current status
 
-- Curated collection of visually compelling websites
-- Minimal, archive-style layout optimized for visual browsing
-- Entries with metadata, description, and credits
-- Easy local hosting and deployment
-- Simple structure for contributions and expansion
+This repository is a working archive framework, not a fully populated public gallery yet. The core logic and project structure are in place, and the library is intended to grow via archived package entries and package metadata rather than a prebuilt static list of examples.
 
 ---
 
 ## Project structure
 
-```
+```text
 Lookout/
-├── index.html
-├── assets/
-│   ├── logo.png        <-- recommended logo location
-│   ├── css/
-│   ├── js/
-│   └── images/
-├── sites/
-│   ├── example-site/
-│   │   ├── index.html
-│   │   └── metadata.json
+├── AGENTS.md
+├── CONTEXT.md
+├── LOCALHOST.md
+├── LICENSE
 ├── README.md
-└── LICENSE
+├── .gitattributes
+├── .gitignore
+├── server.js
+├── assets/
+│   └── logo/
+│       └── logo.svg
+├── docs/
+│   └── spec.md
+├── packages/
+│   └── manifest.json
+├── scripts/
+│   ├── build-db.ps1
+│   ├── publish.ps1
+│   └── rebuild-wacz.ps1
+├── data/                  # generated locally, gitignored
+└── cache/                 # generated locally, gitignored
 ```
-
-Tip: put your logo at `assets/logo.png` (transparent PNG / SVG recommended). The header uses that path.
 
 ---
 
 ## Local setup
 
-Serve as a static site with any simple server.
+Requirements:
+- Node.js 22+
+- Git available if you want update/publish commands
 
-Python:
+Run the library locally:
+
 ```bash
-python -m http.server 8000
-# open http://localhost:8000
+node server.js
 ```
 
-Node:
-```bash
-npx serve .
-# open http://localhost:5000 (or shown port)
+Then open:
+
+```text
+http://127.0.0.1:3000
 ```
+
+The server binds to `127.0.0.1:3000` and exposes the library API and static file serving from the repo root.
 
 ---
 
-## How to add a site
+## Archive model
 
-Under `sites/` create a folder for the site and include:
-- index.html (optional local snapshot)
-- metadata.json with fields like:
-  - title
-  - url
-  - author
-  - description
-  - tags
-- preview image in `assets/images/`
+The design in `docs/spec.md` describes the library as a package-based archive:
 
-Example metadata.json:
-```json
-{
-  "title": "Example Site",
-  "url": "https://example.com",
-  "author": "Designer Name",
-  "description": "Short description of why this site is remarkable.",
-  "tags": ["typography", "experimental", "animation"]
-}
-```
+- each entry is stored as a package under `packages/<slug>/`
+- metadata is stored in `entry.json`
+- capture files include single-file HTML, screenshots, and WACZ content
+- the server rebuilds a SQLite database from package data on startup if needed
+- release assets can be separated from git-managed source files for size control
+
+This is a deliberate architecture for large archived website captures without bloating the repo with binary payloads.
+
+---
+
+## Scripts
+
+Useful repository scripts live in `scripts/`:
+
+- `build-db.ps1` — rebuild the local database from packages
+- `publish.ps1` — validate and publish package updates
+- `rebuild-wacz.ps1` — rebuild WACZ artifacts from archive data
 
 ---
 
 ## Contributing
 
-1. Fork the repo
-2. Add or update an entry under `sites/` and include a preview
-3. Add or update `assets/logo.png` if you want a new logo
-4. Open a pull request with a short description of your change
+The repo is designed around package-based entries and local archive generation. If you are adding a new entry or improving the library:
 
-Please follow the existing entry structure to keep the archive consistent.
-
----
-
-## Badges & Branding notes
-
-- Badges above use Shields.io and auto-update (stars, forks, issues, contributors, license, CI).
-- Keep `assets/logo.png` (160–320px wide) or add an SVG at the same path for crisp scaling.
-- If you prefer the logo inline with the title rather than centered, replace the header with:
-```html
-<p align="left">
-  <img src="assets/logo.png" alt="Lookout" width="64" style="vertical-align:middle" /> <strong>Lookout</strong>
-</p>
-```
+1. review the architecture in `docs/spec.md`
+2. add or update package metadata under `packages/`
+3. keep the capture structure consistent with the archive spec
+4. validate the local server with `node server.js`
 
 ---
 
 ## License
 
-This project is licensed under the MIT License — see the LICENSE file for details.
-
----
-
-If you want, I can:
-- commit this README to the repository and place the file at the proper path,
-- add a suggestions commit that creates an `assets/logo.png` placeholder and a sample `sites/example-site/metadata.json`,
-- or generate a more design-forward README with custom styling and a demo GIF.
+This project is licensed under the MIT License. See `LICENSE` for details.
