@@ -65,6 +65,12 @@
 - **Port Discipline**: Use standard ports (3000, 5000, 8080) and log them clearly.
 - **Behavior**: Treat `localhost` as a real remote server. Respect HTTP methods (GET/POST).
 
+### 13. Commit & Push Discipline (Mandatory)
+- **1 unit of mutation = 1 commit.** One unit is one group of work that stands alone as a single granular commit. Examples: one new file with its purpose, one focused edit, one config addition. Never batch several units into one commit. Never wait for PR-sized work.
+- **Commit immediately after each unit**, before starting the next unit.
+- **Message style is `$unslop`.** Plain human words, no AI tells, active voice, specific file names and reasons. Every message is elaborately detailed: a short subject line, then a body that states what changed, why it changed, which files are in the commit, and what verification was run.
+- **Push immediately after each commit** to the branch in use on the repo remote (`origin`). Stage only that unit's files. Never use `--force` on a shared branch. If the push fails, stop and report. Do not retry with force.
+
 ---
 
 ## Session Goal: Visual Beauty Archive Library
