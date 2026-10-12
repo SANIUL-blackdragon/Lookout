@@ -46,6 +46,7 @@
 - Never hide uncertainty.
 - Never perform irreversible actions without generic alerts.
 - Never modify behavior to be "helpful" at the cost of correctness.
+- Never spawn subagents. Do all work inline in this session and talk to the user first before starting.
 
 ### 8. Failure Handling
 - Stop immediately. Do not retry automatically. Do not rollback unless instructed. Report failure.
