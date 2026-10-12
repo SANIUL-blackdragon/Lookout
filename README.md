@@ -1,6 +1,6 @@
 <!-- Logo + Badges -->
 <p align="center">
-  <img src="assets/logo.png" alt="Lookout" width="160" />
+  <img src="assets/logo/logo.svg" alt="Lookout" width="160" />
 </p>
 
 <p align="center">
