@@ -59,11 +59,15 @@ Crawl scope is per site. The agent decides depth and page count each time and wr
 ```text
 packages/<slug>/        small files, committed to git
 packages/manifest.json  slug, title, version, date, paths, release URLs
-data/library.db         SQLite database, committed to git
+data/library.db         SQLite database, built locally, never committed
 ```
 
 Binaries (WACZ chunks, video segments) live as Release assets under per-package
 tags like `pkg-<slug>-v<n>`. They never enter git history. Clones stay small forever.
+
+The database file never enters git either. It is a build output. The committed
+sources of truth are the `entry.json` files plus the manifest. First run builds
+the database from them, so a fresh clone works with zero manual steps.
 
 `manifest.json` is the update channel. The Library compares the local manifest
 against the repo origin to find new or changed Entries.
@@ -81,7 +85,7 @@ and no custom archive format of our own.
 
 ## 8. Database
 
-SQLite via built-in `node:sqlite`. File: `data/library.db`.
+SQLite via built-in `node:sqlite`. File: `data/library.db`, gitignored.
 
 Tables:
 
@@ -90,7 +94,9 @@ Tables:
 - `packages`: slug (key), manifest version, import date.
 
 The database is the read source for the Library UI and API.
-`entry.json` files are the import source of truth. Reimport rebuilds rows.
+`entry.json` files plus the manifest are the import source of truth.
+`server.js` builds the database from them on first start when the file is
+missing. `scripts/build-db.ps1` does the same standalone. Reimport rebuilds rows.
 
 ## 9. server.js API
 
@@ -126,12 +132,12 @@ Contract rules:
 Autonomy rule: the user only takes three actions. Add a site, press publish,
 flip auto-update. Scripts own everything behind the curtain: chunk naming,
 WACZ rebuild, HLS packaging, manifest bump, release upload, asset download,
-cache rebuild, database import. Each script is re-runnable and skips work
+database build, cache rebuild, database import. Each script is re-runnable and skips work
 already done. Nothing asks the user how it works.
 
 ## 11. Publish and auto-update
 
-- A PowerShell script (`scripts/publish.ps1`) validates the Package, uploads binaries with `gh release upload` under the per-package tag, bumps the manifest and database, commits the small files, then pushes. It runs only where the owner credentials exist. Other machines are read-only.
+- A PowerShell script (`scripts/publish.ps1`) validates the Package, uploads binaries with `gh release upload` under the per-package tag, bumps the manifest, commits the small files, then pushes. It runs only where the owner credentials exist. Other machines are read-only. It never commits the database file.
 - Auto-update is a toggle in the Library UI. When on and network exists, the Library checks the origin manifest on start. New or changed Entries download their assets only, then import. Users see what changed before it applies.
 
 ## 12. License and rights
