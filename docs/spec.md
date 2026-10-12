@@ -35,7 +35,8 @@ One Entry ships as one ZIP with this layout:
 
 `entry.json` holds: slug, title, source URL, credits (designer, studio, year),
 review text, category, colors, fonts, stack, date archived, crawl scope
-(seed URLs, depth, page count, tool versions), and the Capture list with paths.
+(seed URLs, depth, page count, tool versions), the Capture list with paths,
+and a rights block (signals found, date checked, basis for archiving).
 
 No single file in git may pass 80 MB. Files above the rule never enter git.
 WACZ chunks and video upload to a GitHub Release instead. The manifest records
@@ -61,6 +62,14 @@ packages/<slug>/        small files, committed to git
 packages/manifest.json  slug, title, version, date, paths, release URLs
 data/library.db         SQLite database, built locally, never committed
 ```
+
+Committed per Entry: `entry.json`, `singlefile/`, `shots/`, and the full
+unpacked WACZ contents (`wacz/archive/*.warc.gz`, `wacz/indexes/`,
+`wacz/pages.jsonl`, `wacz/datapackage.json`). The crawler splits WARC output
+with `--rolloverSize 83886080`, so every chunk stays under the 80 MB git rule.
+A script rebuilds the `.wacz` from these files into the gitignored cache
+before viewing. WARC chunks and video go to GitHub Releases only as overflow,
+if the repo ever nears the hosting size guidance.
 
 Binaries (WACZ chunks, video segments) live as Release assets under per-package
 tags like `pkg-<slug>-v<n>`. They never enter git history. Clones stay small forever.
