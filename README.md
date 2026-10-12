@@ -9,7 +9,6 @@
   <a href="https://github.com/SANIUL-blackdragon/Lookout/issues"><img src="https://img.shields.io/github/issues/SANIUL-blackdragon/Lookout?style=for-the-badge" alt="Issues" /></a>
   <a href="https://github.com/SANIUL-blackdragon/Lookout/graphs/contributors"><img src="https://img.shields.io/github/contributors/SANIUL-blackdragon/Lookout?style=for-the-badge" alt="Contributors" /></a>
   <a href="https://github.com/SANIUL-blackdragon/Lookout/blob/main/LICENSE"><img src="https://img.shields.io/github/license/SANIUL-blackdragon/Lookout?style=for-the-badge" alt="License" /></a>
-  <a href="https://github.com/SANIUL-blackdragon/Lookout/actions"><img src="https://img.shields.io/github/actions/workflow/status/SANIUL-blackdragon/Lookout/ci.yml?style=for-the-badge" alt="CI status" /></a>
 </p>
 
 # Lookout
