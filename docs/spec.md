@@ -112,7 +112,7 @@ Read endpoints:
 
 Admin endpoints (local machine only):
 
-- `POST /api/packages` Upload a Package ZIP, unpack, validate, register.
+- `POST /api/packages?slug=<slug>` Upload a Package ZIP as the raw request body (`Content-Type: application/zip`), unpack, validate, register. Raw bytes instead of multipart: agents upload with plain HTTP and the Admin page sends it with a few lines of fetch.
 - `POST /api/packages/<slug>/import` Import unpacked files into the database.
 - `GET /api/update/check` Compare local manifest with origin.
 - `POST /api/update/apply` Fetch new assets and import new Packages.
