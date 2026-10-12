@@ -50,6 +50,9 @@ Tool ladder, best fidelity first:
 
 1. Browsertrix Crawler to WACZ for the full dynamic copy. Set `--rolloverSize 83886080` so each WARC chunk stays under the file cap. Keep `--generateWACZ` output as a local build artifact only. Commit the unpacked contents.
 2. SingleFile CLI for the one-file fallback. Mandatory for every Entry.
+   If the CLI fails on a site (known CloseEvent crash on new Chrome as of
+   2026-10), record the capture as missing in entry.json and ship WACZ plus
+   PNGs. Retry when the tool is fixed.
 3. Playwright screenshots (viewport plus full page). Mandatory for every Entry.
 4. Headless video only for motion-driven sites. Ship as HLS segments, not one MP4.
 
