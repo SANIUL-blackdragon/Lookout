@@ -1,14 +1,14 @@
-# Rebuilds cache/<slug>.wacz from packages/<slug>/wacz/ plus fresh datapackage files.
+# Rebuilds cache/<id>.wacz from packages/<id>/wacz/ plus fresh datapackage files.
 # WARC and CDX entries must be STORED (not deflated) for range requests to work.
 param(
-  [Parameter(Mandatory = $true)][string]$Slug,
+  [Parameter(Mandatory = $true)][string]$Id,
   [string]$Root = $(if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path })
 )
 
 $ErrorActionPreference = "Stop"
-$Src = Join-Path $Root "packages/$Slug/wacz"
+$Src = Join-Path $Root "packages/$Id/wacz"
 $CacheDir = Join-Path $Root "cache"
-$Out = Join-Path $CacheDir "$Slug.wacz"
+$Out = Join-Path $CacheDir "$Id.wacz"
 if (-not (Test-Path $Src)) { throw "Nothing to rebuild: $Src missing." }
 New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
 

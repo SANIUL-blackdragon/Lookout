@@ -1,19 +1,21 @@
 # Publishes one package: validates files, uploads binaries to a GitHub Release,
 # bumps the manifest, commits the small files, pushes to origin.
 param(
-  [Parameter(Mandatory = $true)][string]$Slug,
+  [Parameter(Mandatory = $true)][string]$Id,
   [Parameter(Mandatory = $true)][int]$Version
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$PkgDir = Join-Path $Root "packages/$Slug"
+$PkgDir = Join-Path $Root "packages/$Id"
 $ManifestPath = Join-Path $Root "packages/manifest.json"
-$Tag = "pkg-$Slug-v$Version"
 $Limit = 80MB
 
 if (-not (Test-Path $PkgDir)) { throw "Package dir missing: $PkgDir" }
 if (-not (Test-Path (Join-Path $PkgDir "entry.json"))) { throw "entry.json missing in $PkgDir" }
+$Slug = (Get-Content (Join-Path $PkgDir "entry.json") -Raw | ConvertFrom-Json).slug
+if (-not $Slug) { throw "entry.json has no slug." }
+$Tag = "pkg-$Slug-v$Version"
 
 # Files above the git cap may only live under wacz/ or video/. Everything else fails the publish.
 $oversized = Get-ChildItem $PkgDir -Recurse -File | Where-Object { $_.Length -gt $Limit }
@@ -36,14 +38,15 @@ if ($binaries) {
 # Record the entry and its release URLs in the manifest.
 $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
 $urls = $binaries | ForEach-Object { "https://github.com/SANIUL-blackdragon/Lookout/releases/download/$Tag/$($_.Name)" }
-$entry = $manifest.entries | Where-Object { $_.slug -eq $Slug }
+$entry = $manifest.entries | Where-Object { $_.id -eq $Id }
 if (-not $entry) {
-  $entry = [pscustomobject]@{ slug = $Slug }
+  $entry = [pscustomobject]@{ id = $Id }
   $manifest.entries += $entry
 }
+$entry | Add-Member -NotePropertyName slug -NotePropertyValue $Slug -Force
 $entry | Add-Member -NotePropertyName version -NotePropertyValue $Version -Force
 $entry | Add-Member -NotePropertyName date -NotePropertyValue (Get-Date -Format o) -Force
-$entry | Add-Member -NotePropertyName path -NotePropertyValue "packages/$Slug" -Force
+$entry | Add-Member -NotePropertyName path -NotePropertyValue "packages/$Id" -Force
 $entry | Add-Member -NotePropertyName release -NotePropertyValue $Tag -Force
 $entry | Add-Member -NotePropertyName assets -NotePropertyValue @($urls) -Force
 $manifest.version += 1
