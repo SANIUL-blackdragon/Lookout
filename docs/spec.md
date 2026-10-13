@@ -24,7 +24,7 @@ See `CONTEXT.md`. Four words matter: Library, Entry, Capture, Package.
 One Entry ships as one ZIP with this layout:
 
 ```text
-<slug>.zip
+<id>.zip
   entry.json
   singlefile/<slug>.html
   shots/shot-viewport.png
@@ -33,7 +33,10 @@ One Entry ships as one ZIP with this layout:
   video/hls/ (optional: playlist.m3u8 plus .ts segments)
 ```
 
-`entry.json` holds: slug, title, source URL, credits (designer, studio, year),
+The id is the capture timestamp in UTC, `YYYYMMDDHHMMSS`. Packages are stored
+by id, never by slug. The slug stays a human label inside entry.json.
+
+`entry.json` holds: id, slug, title, source URL, credits (designer, studio, year),
 review text, category, colors, fonts, stack, date archived, crawl scope
 (seed URLs, depth, page count, tool versions), the Capture list with paths,
 and a rights block (signals found, date checked, basis for archiving).
@@ -61,8 +64,8 @@ Crawl scope is per site. The agent decides depth and page count each time and wr
 ## 6. Storage layout
 
 ```text
-packages/<slug>/        small files, committed to git
-packages/manifest.json  slug, title, version, date, paths, release URLs
+packages/<id>/           committed package contents, keyed by timestamp id
+packages/manifest.json  id, slug, title, version, date, paths, release URLs
 data/library.db         SQLite database, built locally, never committed
 ```
 
@@ -103,7 +106,7 @@ Tables:
 
 - `entries`: slug (key), title, source URL, credits, review, category, stack, date archived, version.
 - `captures`: id (key), entry slug, type, path, size, notes.
-- `packages`: slug (key), manifest version, import date.
+- `packages`: id (key), slug, manifest version, import date.
 
 The database is the read source for the Library UI and API.
 `entry.json` files plus the manifest are the import source of truth.
@@ -124,8 +127,8 @@ Read endpoints:
 
 Admin endpoints (local machine only):
 
-- `POST /api/packages?slug=<slug>` Upload a Package ZIP as the raw request body (`Content-Type: application/zip`), unpack, validate, register. Raw bytes instead of multipart: agents upload with plain HTTP and the Admin page sends it with a few lines of fetch.
-- `POST /api/packages/<slug>/import` Import unpacked files into the database.
+- `POST /api/packages?id=<id>` Upload a Package ZIP as the raw request body (`Content-Type: application/zip`), unpack, validate, register. Raw bytes instead of multipart: agents upload with plain HTTP and the Admin page sends it with a few lines of fetch.
+- `POST /api/packages/<id>/import` Import unpacked files into the database.
 - `GET /api/update/check` Compare local manifest with origin.
 - `POST /api/update/apply` Fetch new assets and import new Packages.
 
