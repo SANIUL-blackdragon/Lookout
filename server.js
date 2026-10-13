@@ -42,6 +42,11 @@ function validSlug(s) {
   return typeof s === "string" && /^[a-z0-9-]{1,80}$/.test(s);
 }
 
+// Package id is a UTC capture timestamp: YYYYMMDDHHMMSS.
+function validId(s) {
+  return typeof s === "string" && /^\d{14}$/.test(s);
+}
+
 function readManifest() {
   try {
     return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
@@ -64,7 +69,7 @@ function openDb() {
       type TEXT, path TEXT, size_bytes INTEGER, notes TEXT
     );
     CREATE TABLE IF NOT EXISTS packages (
-      slug TEXT PRIMARY KEY, manifest_version INTEGER, imported_at TEXT
+      id TEXT PRIMARY KEY, slug TEXT, manifest_version INTEGER, imported_at TEXT
     );
   `);
   return db;
@@ -85,17 +90,20 @@ function buildDatabase() {
   const insertCapture = db.prepare(`INSERT INTO captures
     (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
   const insertPackage = db.prepare(`INSERT OR REPLACE INTO packages
-    (slug, manifest_version, imported_at) VALUES (?, ?, ?)`);
+    (id, slug, manifest_version, imported_at) VALUES (?, ?, ?, ?)`);
 
   let count = 0;
   for (const dirent of fs.readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
     if (!dirent.isDirectory()) continue;
-    const slug = dirent.name;
-    if (!validSlug(slug)) continue;
-    const entryPath = path.join(PACKAGES_DIR, slug, "entry.json");
+    const id = dirent.name;
+    if (!validId(id)) continue;
+    const entryPath = path.join(PACKAGES_DIR, id, "entry.json");
     if (!fs.existsSync(entryPath)) continue;
     const e = JSON.parse(fs.readFileSync(entryPath, "utf8"));
-    const manifestEntry = manifest.entries.find((x) => x.slug === slug) || {};
+    const slug = e.slug;
+    if (!validSlug(slug)) continue;
+    const manifestEntry = manifest.entries.find((x) => x.id === id)
+      || manifest.entries.find((x) => x.slug === slug) || {};
     insertEntry.run(
       slug, e.title || slug, e.sourceUrl || null,
       JSON.stringify(e.credits || {}), e.review || null,
@@ -106,11 +114,11 @@ function buildDatabase() {
     for (const c of e.captures || []) {
       let size = null;
       try {
-        size = fs.statSync(path.join(PACKAGES_DIR, slug, c.path)).size;
+        size = fs.statSync(path.join(PACKAGES_DIR, id, c.path)).size;
       } catch { /* listed but not downloaded yet */ }
       insertCapture.run(slug, c.type || null, c.path || null, size, c.notes || null);
     }
-    insertPackage.run(slug, manifestEntry.version || 1, new Date().toISOString());
+    insertPackage.run(id, slug, manifestEntry.version || 1, new Date().toISOString());
     count++;
   }
   db.close();
@@ -164,8 +172,8 @@ function resolveStatic(urlPath) {
   return full;
 }
 
-function importPackage(slug) {
-  const dir = path.join(PACKAGES_DIR, slug);
+function importPackage(id) {
+  const dir = path.join(PACKAGES_DIR, id);
   const entryPath = path.join(dir, "entry.json");
   if (!fs.existsSync(entryPath)) return { ok: false, error: "entry.json missing" };
   const bad = [];
@@ -179,7 +187,7 @@ function importPackage(slug) {
   }
   if (bad.length) return { ok: false, error: "files above 80 MB outside wacz/ or video/", files: bad };
   buildDatabase();
-  return { ok: true, slug };
+  return { ok: true, id };
 }
 
 function walkFiles(dir) {
@@ -234,8 +242,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && parts[0] === "api" && parts[1] === "packages" && parts.length === 2) {
-      const slug = url.searchParams.get("slug");
-      if (!validSlug(slug)) return sendJson(res, 400, { error: "bad slug" });
+      const id = url.searchParams.get("id");
+      if (!validId(id)) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
       if (req.headers["content-type"] !== "application/zip") {
         return sendJson(res, 415, { error: "send the ZIP as the raw body with Content-Type: application/zip" });
       }
@@ -245,15 +253,15 @@ const server = http.createServer(async (req, res) => {
       } catch {
         return sendJson(res, 413, { error: "body above 512 MB" });
       }
-      fs.writeFileSync(path.join(PACKAGES_DIR, slug + ".zip"), body);
-      return sendJson(res, 200, { ok: true, slug, bytes: body.length });
+      fs.writeFileSync(path.join(PACKAGES_DIR, id + ".zip"), body);
+      return sendJson(res, 200, { ok: true, id, bytes: body.length });
     }
 
     if (req.method === "POST" && parts[0] === "api" && parts[1] === "packages" && parts[3] === "import") {
-      const slug = parts[2];
-      if (!validSlug(slug)) return sendJson(res, 400, { error: "bad slug" });
-      const zip = path.join(PACKAGES_DIR, slug + ".zip");
-      const dir = path.join(PACKAGES_DIR, slug);
+      const id = parts[2];
+      if (!validId(id)) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
+      const zip = path.join(PACKAGES_DIR, id + ".zip");
+      const dir = path.join(PACKAGES_DIR, id);
       if (fs.existsSync(zip)) {
         fs.mkdirSync(dir, { recursive: true });
         execFileSync("powershell", [
@@ -262,8 +270,8 @@ const server = http.createServer(async (req, res) => {
         ]);
         fs.unlinkSync(zip);
       }
-      if (!fs.existsSync(dir)) return sendJson(res, 404, { error: "no such package", slug });
-      const result = importPackage(slug);
+      if (!fs.existsSync(dir)) return sendJson(res, 404, { error: "no such package", id });
+      const result = importPackage(id);
       if (!result.ok) return sendJson(res, 422, result);
       return sendJson(res, 200, result);
     }
@@ -275,7 +283,8 @@ const server = http.createServer(async (req, res) => {
         const remote = JSON.parse(raw.toString());
         const local = readManifest();
         const newer = (remote.entries || []).filter((r) => {
-          const l = (local.entries || []).find((x) => x.slug === r.slug);
+          const l = (local.entries || []).find((x) => x.id === r.id)
+            || (local.entries || []).find((x) => x.slug === r.slug);
           return !l || (r.version || 0) > (l.version || 0);
         });
         return sendJson(res, 200, { upToDate: newer.length === 0, newer });
