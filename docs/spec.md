@@ -49,15 +49,16 @@ their URLs. The Admin UI rejects Packages that break this split.
 
 An agent captures each Entry. The agent picks tools per site and records the picks in `entry.json`.
 
-Tool ladder, best fidelity first:
+Tool ladder, dockerless first, best fidelity first:
 
-1. Browsertrix Crawler to WACZ for the full dynamic copy. Set `--rolloverSize 83886080` so each WARC chunk stays under the file cap. Keep `--generateWACZ` output as a local build artifact only. Commit the unpacked contents.
+1. Record with Playwright driving system Chrome, writing same-host traffic to WARC through warcio, then packing with py-wacz. No Docker, no daemon. Strip wire encoding headers at record time because body bytes are stored decoded. This is the default for single-page and small sites.
 2. SingleFile CLI for the one-file fallback. Mandatory for every Entry.
    If the CLI fails on a site (known CloseEvent crash on new Chrome as of
    2026-10), record the capture as missing in entry.json and ship WACZ plus
    PNGs. Retry when the tool is fixed.
-3. Playwright screenshots (viewport plus full page). Mandatory for every Entry.
+3. Playwright screenshots (viewport plus full page) in the same session. Mandatory for every Entry.
 4. Headless video only for motion-driven sites. Ship as HLS segments, not one MP4.
+5. Browsertrix Crawler only for multi-hundred-page sites, and only with explicit user permission under the Docker rule. Set `--rolloverSize 83886080` so each WARC chunk stays under the file cap. Keep `--generateWACZ` output as a local build artifact only. Commit the unpacked contents.
 
 Crawl scope is per site. The agent decides depth and page count each time and writes them down. No global defaults.
 
