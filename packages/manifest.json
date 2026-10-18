@@ -1,1 +1,18 @@
-{"entries": [], "updated": null, "version": 1}
+{
+  "entries": [
+    {
+      "id": "20261012211409",
+      "slug": "bl00d-money",
+      "version": 1,
+      "date": "2026-10-19T05:49:50.8837313+06:00",
+      "path": "packages/20261012211409",
+      "release": "pkg-bl00d-money-v1",
+      "assets": [
+        "https://github.com/SANIUL-blackdragon/Lookout/releases/download/pkg-bl00d-money-v1/clean.warc.gz",
+        "https://github.com/SANIUL-blackdragon/Lookout/releases/download/pkg-bl00d-money-v1/index.cdx.gz"
+      ]
+    }
+  ],
+  "updated": "2026-10-19T05:49:50.8922982+06:00",
+  "version": 2
+}
