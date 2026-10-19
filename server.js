@@ -198,6 +198,20 @@ function resolveStatic(urlPath) {
   return full;
 }
 
+// Unpacks packages/<id>.zip into packages/<id>/ and removes the ZIP. The id is
+// validated before this runs, so neither path can escape PACKAGES_DIR.
+function unpackPackage(id) {
+  const zip = path.join(PACKAGES_DIR, id + ".zip");
+  const dir = path.join(PACKAGES_DIR, id);
+  fs.mkdirSync(dir, { recursive: true });
+  execFileSync("powershell", [
+    "-NoProfile", "-Command",
+    `Expand-Archive -Path '${zip}' -DestinationPath '${dir}' -Force`,
+  ]);
+  fs.unlinkSync(zip);
+  return dir;
+}
+
 function importPackage(id) {
   const dir = path.join(PACKAGES_DIR, id);
   const entryPath = path.join(dir, "entry.json");
@@ -289,23 +303,34 @@ const server = http.createServer(async (req, res) => {
       } catch {
         return sendJson(res, 413, { error: "body above 512 MB" });
       }
+      const dir = path.join(PACKAGES_DIR, id);
+      if (fs.existsSync(dir)) {
+        return sendJson(res, 409, { error: "package already exists", id });
+      }
+      fs.mkdirSync(PACKAGES_DIR, { recursive: true });
       fs.writeFileSync(path.join(PACKAGES_DIR, id + ".zip"), body);
+      let result;
+      try {
+        unpackPackage(id);
+        result = importPackage(id);
+      } catch (e) {
+        result = { ok: false, error: e.message };
+      }
+      if (!result.ok) {
+        // The directory did not exist before this request, so removing it
+        // cannot destroy anything the operator already had on disk.
+        fs.rmSync(dir, { recursive: true, force: true });
+        fs.rmSync(path.join(PACKAGES_DIR, id + ".zip"), { force: true });
+        return sendJson(res, 422, result);
+      }
       return sendJson(res, 200, { ok: true, id, bytes: body.length });
     }
 
     if (req.method === "POST" && parts[0] === "api" && parts[1] === "packages" && parts[3] === "import") {
       const id = parts[2];
       if (!validId(id)) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
-      const zip = path.join(PACKAGES_DIR, id + ".zip");
+      if (fs.existsSync(path.join(PACKAGES_DIR, id + ".zip"))) unpackPackage(id);
       const dir = path.join(PACKAGES_DIR, id);
-      if (fs.existsSync(zip)) {
-        fs.mkdirSync(dir, { recursive: true });
-        execFileSync("powershell", [
-          "-NoProfile", "-Command",
-          `Expand-Archive -Path '${zip}' -DestinationPath '${dir}' -Force`,
-        ]);
-        fs.unlinkSync(zip);
-      }
       if (!fs.existsSync(dir)) return sendJson(res, 404, { error: "no such package", id });
       const result = importPackage(id);
       if (!result.ok) return sendJson(res, 422, result);
