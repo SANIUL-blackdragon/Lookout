@@ -62,6 +62,8 @@ Tool ladder, no Docker anywhere, best fidelity first:
 
 Crawl scope is per site. The agent decides depth and page count each time and writes them down. No global defaults.
 
+The capture machine is the repo workstation. ffmpeg, Playwright's Chromium builds, and the `gh` CLI are confirmed present there as of 2026-10. Nothing depends on Docker.
+
 ## 6. Storage layout
 
 ```text
@@ -188,4 +190,3 @@ already done. Nothing asks the user how it works.
 ## 13. Open items
 
 1. First 2 to 3 pilot sites to archive.
-2. Confirm ffmpeg, Playwright browsers, and the `gh` CLI exist on the capture machine. Nothing depends on Docker.
