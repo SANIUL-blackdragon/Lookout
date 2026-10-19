@@ -109,6 +109,7 @@ This is a deliberate architecture for large archived website captures without bl
 Useful repository scripts live in `scripts/`:
 
 - `build-db.ps1` — rebuild the local database from packages
+- `fetch-assets.ps1` — download package chunks missing from this checkout, then rebuild the local `.wacz`
 - `publish.ps1` — validate and publish package updates
 - `rebuild-wacz.ps1` — rebuild WACZ artifacts from archive data
 
