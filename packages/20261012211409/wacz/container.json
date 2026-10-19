@@ -1,0 +1,61 @@
+{
+  "format": "lookout-sidecar/1",
+  "warc": "archive/clean.warc",
+  "fill": "space",
+  "files": {
+    "binaries/08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7.woff2": {
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7",
+      "bytes": 14708,
+      "contentType": "font/woff2"
+    },
+    "binaries/e9201eddf1d41d0b62253295d869ce3cf65768f7102b797f02c7f8c876b4a9d5.woff2": {
+      "sha256": "e9201eddf1d41d0b62253295d869ce3cf65768f7102b797f02c7f8c876b4a9d5",
+      "bytes": 34704,
+      "contentType": "font/woff2"
+    },
+    "binaries/01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22.woff2": {
+      "sha256": "01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22",
+      "bytes": 14888,
+      "contentType": "font/woff2"
+    },
+    "binaries/ecd9a720361e7ceac6fdb2b78241c367672b24ef311f6f2b24cc1accedc66fc1.jpg": {
+      "sha256": "ecd9a720361e7ceac6fdb2b78241c367672b24ef311f6f2b24cc1accedc66fc1",
+      "bytes": 52399,
+      "contentType": "image/jpeg"
+    }
+  },
+  "regions": [
+    {
+      "offset": 2046841,
+      "length": 14708,
+      "file": "binaries/08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7.woff2",
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7",
+      "contentType": "font/woff2",
+      "url": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F63fjptAgt5VM-kVkqdyU8n1i8q1w.woff2"
+    },
+    {
+      "offset": 2063304,
+      "length": 34704,
+      "file": "binaries/e9201eddf1d41d0b62253295d869ce3cf65768f7102b797f02c7f8c876b4a9d5.woff2",
+      "sha256": "e9201eddf1d41d0b62253295d869ce3cf65768f7102b797f02c7f8c876b4a9d5",
+      "contentType": "font/woff2",
+      "url": "https://fonts.gstatic.com/s/hankengrotesk/v12/ieVn2YZDLWuGJpnzaiwFXS9tYtpd59A.woff2"
+    },
+    {
+      "offset": 2099766,
+      "length": 14888,
+      "file": "binaries/01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22.woff2",
+      "sha256": "01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22",
+      "contentType": "font/woff2",
+      "url": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJwlBFgg.woff2"
+    },
+    {
+      "offset": 2116849,
+      "length": 52399,
+      "file": "binaries/ecd9a720361e7ceac6fdb2b78241c367672b24ef311f6f2b24cc1accedc66fc1.jpg",
+      "sha256": "ecd9a720361e7ceac6fdb2b78241c367672b24ef311f6f2b24cc1accedc66fc1",
+      "contentType": "image/jpeg",
+      "url": "https://bl00d.money/img/8f8dc73580ac5137.jpg"
+    }
+  ]
+}

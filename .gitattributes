@@ -1,6 +1,13 @@
 # Normalize text to LF in the repo so Windows checkouts stop showing phantom diffs.
 * text=auto eol=lf
 
+# Archived page text stays byte-exact. The WACZ rebuild re-gzips these files and
+# the sidecar map points into them by offset, so Git must not touch line endings.
+# -text (not binary) keeps them diffable, which is the point of storing them plain.
+packages/**/wacz/archive/*.warc -text
+packages/**/wacz/indexes/index.cdx -text
+packages/**/wacz/indexes/index.idx -text
+
 # Keep binaries byte-identical.
 *.png binary
 *.jpg binary
