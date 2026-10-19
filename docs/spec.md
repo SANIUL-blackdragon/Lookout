@@ -49,7 +49,7 @@ git as a plain file.
 
 An agent captures each Entry. The agent picks tools per site and records the picks in `entry.json`.
 
-Tool ladder, dockerless first, best fidelity first:
+Tool ladder, no Docker anywhere, best fidelity first:
 
 1. Record with Playwright driving system Chrome, writing same-host traffic to WARC through warcio, then packing with py-wacz. No Docker, no daemon. Strip wire encoding headers at record time because body bytes are stored decoded. This is the default for single-page and small sites.
 2. SingleFile CLI for the one-file fallback. Mandatory for every Entry.
@@ -58,7 +58,7 @@ Tool ladder, dockerless first, best fidelity first:
    PNGs. Retry when the tool is fixed.
 3. Playwright screenshots (viewport plus full page) in the same session. Mandatory for every Entry.
 4. Headless video only for motion-driven sites. Ship as HLS segments, not one MP4.
-5. Browsertrix Crawler only for multi-hundred-page sites, and only with explicit user permission under the Docker rule. Set `--rolloverSize 83886080` so each WARC chunk stays under the file cap. Keep `--generateWACZ` output as a local build artifact only. Commit the unpacked contents.
+5. Multi-hundred-page sites need explicit user permission and a dockerless plan. Pick the crawler when that case shows up, and prefer one that installs with pip or npm. Keep each WARC chunk under the 80 MB cap. Keep any WACZ output as a local build artifact only. Commit the unpacked contents.
 
 Crawl scope is per site. The agent decides depth and page count each time and writes them down. No global defaults.
 
@@ -188,4 +188,4 @@ already done. Nothing asks the user how it works.
 ## 13. Open items
 
 1. First 2 to 3 pilot sites to archive.
-2. Confirm Docker, ffmpeg, Playwright browsers, and the `gh` CLI exist on the capture machine.
+2. Confirm ffmpeg, Playwright browsers, and the `gh` CLI exist on the capture machine. Nothing depends on Docker.
