@@ -58,9 +58,15 @@ function readManifest() {
 function openDb() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const db = new DatabaseSync(DB_PATH);
+  // A pre-id database keys entries by slug. Entries rebuild from the source
+  // files, so drop the stale table instead of migrating rows.
+  const cols = db.prepare("PRAGMA table_info(entries)").all();
+  if (cols.length && !cols.some((c) => c.name === "id")) {
+    db.exec("DROP TABLE entries");
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS entries (
-      slug TEXT PRIMARY KEY, title TEXT, source_url TEXT,
+      id TEXT PRIMARY KEY, slug TEXT UNIQUE, title TEXT, source_url TEXT,
       credits_json TEXT, review TEXT, category TEXT,
       stack TEXT, date_archived TEXT, version INTEGER
     );
@@ -76,16 +82,17 @@ function openDb() {
 }
 
 // Rebuilds every row from packages/*/entry.json plus the manifest.
-// Idempotent: rows for a slug are replaced, never doubled.
+// Idempotent: rows for an entry id are replaced, never doubled.
 function buildDatabase() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   fs.mkdirSync(PACKAGES_DIR, { recursive: true });
   const manifest = readManifest();
   const db = openDb();
-  const insertEntry = db.prepare(`INSERT OR REPLACE INTO entries
-    (slug, title, source_url, credits_json, review, category, stack, date_archived, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const clearEntry = db.prepare("DELETE FROM entries WHERE id = ? OR slug = ?");
+  const insertEntry = db.prepare(`INSERT INTO entries
+    (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const clearCaptures = db.prepare("DELETE FROM captures WHERE entry_slug = ?");
   const insertCapture = db.prepare(`INSERT INTO captures
     (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
@@ -104,8 +111,9 @@ function buildDatabase() {
     if (!validSlug(slug)) continue;
     const manifestEntry = manifest.entries.find((x) => x.id === id)
       || manifest.entries.find((x) => x.slug === slug) || {};
+    clearEntry.run(id, slug);
     insertEntry.run(
-      slug, e.title || slug, e.sourceUrl || null,
+      id, slug, e.title || slug, e.sourceUrl || null,
       JSON.stringify(e.credits || {}), e.review || null,
       e.category || null, e.stack || null, e.dateArchived || null,
       manifestEntry.version || 1
@@ -212,10 +220,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && parts[0] === "entry" && parts[1]) {
-      if (!validSlug(parts[1])) return sendJson(res, 400, { error: "bad slug" });
-      const page = path.join(ROOT, "sites", parts[1], "index.html");
+      if (!validId(parts[1])) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
+      const db = openDb();
+      const entry = db.prepare("SELECT slug FROM entries WHERE id = ?").get(parts[1]);
+      db.close();
+      if (!entry) return sendJson(res, 404, { error: "unknown entry", id: parts[1] });
+      const page = path.join(ROOT, "sites", entry.slug, "index.html");
       if (fs.existsSync(page)) return serveFile(res, page);
-      return sendJson(res, 404, { error: "entry page not built yet", slug: parts[1] });
+      return sendJson(res, 404, { error: "entry page not built yet", id: parts[1] });
     }
 
     if (req.method === "GET" && url.pathname === "/api/entries") {
@@ -226,14 +238,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && parts[0] === "api" && parts[1] === "entries" && parts[2]) {
-      if (!validSlug(parts[2])) return sendJson(res, 400, { error: "bad slug" });
+      if (!validId(parts[2])) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
       const db = openDb();
-      const entry = db.prepare("SELECT * FROM entries WHERE slug = ?").get(parts[2]);
+      const entry = db.prepare("SELECT * FROM entries WHERE id = ?").get(parts[2]);
       const captures = entry
-        ? db.prepare("SELECT * FROM captures WHERE entry_slug = ?").all(parts[2])
+        ? db.prepare("SELECT * FROM captures WHERE entry_slug = ?").all(entry.slug)
         : [];
       db.close();
-      if (!entry) return sendJson(res, 404, { error: "unknown entry", slug: parts[2] });
+      if (!entry) return sendJson(res, 404, { error: "unknown entry", id: parts[2] });
       return sendJson(res, 200, { entry, captures });
     }
 

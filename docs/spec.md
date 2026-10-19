@@ -106,7 +106,7 @@ SQLite via built-in `node:sqlite`. File: `data/library.db`, gitignored.
 
 Tables:
 
-- `entries`: slug (key), title, source URL, credits, review, category, stack, date archived, version.
+- `entries`: id (key), slug (label), title, source URL, credits, review, category, stack, date archived, version.
 - `captures`: id (key), entry slug, type, path, size, notes.
 - `packages`: id (key), slug, manifest version, import date.
 
@@ -122,9 +122,9 @@ Node 22, localhost only, no auth. Every UI action has a JSON twin.
 Read endpoints:
 
 - `GET /` Library home.
-- `GET /entry/<slug>` Entry page with replay viewer.
+- `GET /entry/<id>` Entry page with replay viewer.
 - `GET /api/entries` Entry list as JSON.
-- `GET /api/entries/<slug>` One Entry with Captures as JSON.
+- `GET /api/entries/<id>` One Entry with Captures as JSON.
 - `GET /api/manifest` Manifest as JSON for update checks.
 
 Admin endpoints (local machine only):
