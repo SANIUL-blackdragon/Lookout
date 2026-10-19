@@ -11,8 +11,8 @@ Functionality comes first. Visual design of the Library itself comes second.
 ## 2. Non-goals for v1
 
 - No public write access. Only the repo owner publishes.
-- No paid storage or services. Total spend is zero. Release assets are free and never touch LFS quota.
-- No Git LFS. Binaries ship through GitHub Releases instead.
+- No paid storage or services. Total spend is zero.
+- No Git LFS. No second store. Binaries ride in git as plain files.
 - No admin styling pass. The Admin UI must work, not shine.
 
 ## 3. Terms
@@ -29,7 +29,7 @@ One Entry ships as one ZIP with this layout:
   singlefile/<slug>.html
   shots/shot-viewport.png
   shots/shot-full.png
-  wacz/ (unpacked WACZ contents: archive/*.warc.gz, indexes/, pages.jsonl, datapackage.json)
+  wacz/ (unpacked WACZ: archive/clean.warc, indexes/, pages/pages.jsonl, container.json, plus loose binary sidecar files)
   video/hls/ (optional: playlist.m3u8 plus .ts segments)
 ```
 
@@ -41,9 +41,9 @@ review text, category, colors, fonts, stack, date archived, crawl scope
 (seed URLs, depth, page count, tool versions), the Capture list with paths,
 and a rights block (signals found, date checked, basis for archiving).
 
-No single file in git may pass 80 MB. Files above the rule never enter git.
-WACZ chunks and video upload to a GitHub Release instead. The manifest records
-their URLs. The Admin UI rejects Packages that break this split.
+No single file in git may pass 80 MB. The Admin UI and the publish script
+reject any Package that breaks the rule. Every file, text or binary, rides
+git as a plain file.
 
 ## 5. Capture pipeline
 
@@ -66,20 +66,21 @@ Crawl scope is per site. The agent decides depth and page count each time and wr
 
 ```text
 packages/<id>/           committed package contents, keyed by timestamp id
-packages/manifest.json  id, slug, title, version, date, paths, release URLs
+packages/manifest.json  id, slug, title, version, date, paths
 data/library.db         SQLite database, built locally, never committed
 ```
 
 Committed per Entry: `entry.json`, `singlefile/`, `shots/`, and the full
-unpacked WACZ contents (`wacz/archive/*.warc.gz`, `wacz/indexes/`,
-`wacz/pages.jsonl`, `wacz/datapackage.json`). The crawler splits WARC output
-with `--rolloverSize 83886080`, so every chunk stays under the 80 MB git rule.
-A script rebuilds the `.wacz` from these files into the gitignored cache
-before viewing. WARC chunks and video go to GitHub Releases only as overflow,
-if the repo ever nears the hosting size guidance.
+unpacked WACZ contents (`wacz/archive/clean.warc`, `wacz/indexes/`,
+`wacz/pages/pages.jsonl`, `wacz/container.json`, and the loose binary sidecar
+files named there). The crawler splits WARC output with `--rolloverSize
+83886080`, so every chunk stays under the 80 MB git rule. A script rebuilds
+the `.wacz` from these files, reinjecting the sidecar binaries at their
+recorded offsets, into the gitignored cache before viewing. Git is the only
+store, so nothing uploads anywhere.
 
-Binaries (WACZ chunks, video segments) live as Release assets under per-package
-tags like `pkg-<slug>-v<n>`. They never enter git history. Clones stay small forever.
+Binaries (font and image sidecars, video segments) ride in git as plain files
+next to the metadata that describes them. No Release, no LFS, no second store.
 
 The database file never enters git either. It is a build output. The committed
 sources of truth are the `entry.json` files plus the manifest. First run builds
@@ -89,13 +90,13 @@ the database from them, so a fresh clone works with zero manual steps.
 against the repo origin to find new or changed Entries.
 
 Why unpacked: a WACZ is a ZIP. Its bulk is the WARC files inside.
-Split WARC chunks plus small files ride in git or Releases with no LFS
-and no custom archive format of our own.
+Split WARC chunks plus small files ride in git with no LFS and no custom
+archive format of our own.
 
 ## 7. Replay
 
 - WACZ Captures replay through an embedded ReplayWeb.page viewer.
-- A setup script fetches the Entry chunks (from git or its Release) and rebuilds a local `.wacz` into a gitignored cache dir. The viewer loads the cached file. Rebuild once, not on every view.
+- A setup script fetches the Entry chunks (from git) and rebuilds a local `.wacz` into a gitignored cache dir. The viewer loads the cached file. Rebuild once, not on every view.
 - Video Captures play through the HLS playlist with hls.js. Segments stay small and the viewer never knows.
 - SingleFile HTML and PNGs serve as plain static files and as fallbacks when replay fails.
 
@@ -131,7 +132,7 @@ Admin endpoints (local machine only):
 - `POST /api/packages?id=<id>` Upload a Package ZIP as the raw request body (`Content-Type: application/zip`), unpack, validate, register. Raw bytes instead of multipart: agents upload with plain HTTP and the Admin page sends it with a few lines of fetch.
 - `POST /api/packages/<id>/import` Import unpacked files into the database.
 - `GET /api/update/check` Compare local manifest with origin.
-- `POST /api/update/apply` Fetch new assets and import new Packages.
+- `POST /api/update/apply` Fetch new Packages and import them.
 
 ## 10. Admin UI and agent contract
 
@@ -147,14 +148,14 @@ Contract rules:
 
 Autonomy rule: the user only takes three actions. Add a site, press publish,
 flip auto-update. Scripts own everything behind the curtain: chunk naming,
-WACZ rebuild, HLS packaging, manifest bump, release upload, asset download,
+WACZ rebuild, HLS packaging, manifest bump,
 database build, cache rebuild, database import. Each script is re-runnable and skips work
 already done. Nothing asks the user how it works.
 
 ## 11. Publish and auto-update
 
-- A PowerShell script (`scripts/publish.ps1`) validates the Package, uploads binaries with `gh release upload` under the per-package tag, bumps the manifest, commits the small files, then pushes. It runs only where the owner credentials exist. Other machines are read-only. It never commits the database file.
-- Auto-update is a toggle in the Library UI. When on and network exists, the Library checks the origin manifest on start. New or changed Entries download their assets only, then import. Users see what changed before it applies.
+- A PowerShell script (`scripts/publish.ps1`) validates the Package against the 80 MB rule, bumps the manifest, commits the package files, then pushes. It runs only where the owner credentials exist. Other machines are read-only. It never commits the database file.
+- Auto-update is a toggle in the Library UI. When on and network exists, the Library checks the origin manifest on start. New or changed Entries are pulled from git, then import. Users see what changed before it applies.
 
 ## 12. License and rights
 
