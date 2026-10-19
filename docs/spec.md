@@ -93,6 +93,28 @@ Why unpacked: a WACZ is a ZIP. Its bulk is the WARC files inside.
 Split WARC chunks plus small files ride in git with no LFS and no custom
 archive format of our own.
 
+### Sidecar container
+
+`wacz/container.json` says where each binary body sits and which sidecar file
+holds its bytes. `scripts/wacz-sidecars.py` writes it and reads it back.
+
+| Field | Meaning |
+| --- | --- |
+| `format` | Literal `lookout-sidecar/1`. |
+| `warc` | Path to the WARC inside the package, for example `archive/clean.warc`. |
+| `fill` | Literal `space`. A replaced body region holds ASCII spaces of the same length, never a NUL byte. |
+| `files` | Map keyed by sidecar path. Each value has `sha256`, `bytes`, and `contentType`. |
+| `regions` | List of replaced body regions. Each entry has `offset`, `length`, `file`, `sha256`, `contentType`, and `url`. |
+
+`offset` is the byte position of the HTTP body inside the WARC. `length` is the
+body size. `file` names the sidecar that holds the real bytes. `url` is the WARC
+target URI.
+
+Only binary bodies move. Text bodies stay inline in the WARC. `split` also
+unpacks `indexes/*.cdx.gz` to a plain `.cdx`. `assemble` reads each region,
+checks its length and `sha256`, and writes the sidecar bytes back at `offset`,
+so the result matches the original WARC.
+
 ## 7. Replay
 
 - WACZ Captures replay through an embedded ReplayWeb.page viewer.
