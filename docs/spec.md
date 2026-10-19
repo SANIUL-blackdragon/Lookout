@@ -159,12 +159,11 @@ already done. Nothing asks the user how it works.
 
 ## 12. License and rights
 
-- Own code and metadata: MIT. Holder name pending, see section 13.
+- Own code and metadata: MIT, copyright BLACK DRAGON, 2026. See the LICENSE file.
 - Third-party Captures keep their original rights. MIT never covers them.
 - No Entry is captured without a license and ToS check. Unclear means stop and ask.
 
 ## 13. Open items
 
-1. MIT holder name and year for the LICENSE file.
-2. First 2 to 3 pilot sites to archive.
-3. Confirm Docker, ffmpeg, Playwright browsers, and the `gh` CLI exist on the capture machine.
+1. First 2 to 3 pilot sites to archive.
+2. Confirm Docker, ffmpeg, Playwright browsers, and the `gh` CLI exist on the capture machine.
