@@ -64,6 +64,12 @@ function openDb() {
   if (cols.length && !cols.some((c) => c.name === "id")) {
     db.exec("DROP TABLE entries");
   }
+  // The packages table gained a source_url column. It rebuilds from disk, so
+  // drop the stale table instead of migrating its rows.
+  const pkgCols = db.prepare("PRAGMA table_info(packages)").all();
+  if (pkgCols.length && !pkgCols.some((c) => c.name === "source_url")) {
+    db.exec("DROP TABLE packages");
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS entries (
       id TEXT PRIMARY KEY, slug TEXT UNIQUE, title TEXT, source_url TEXT,
@@ -75,7 +81,8 @@ function openDb() {
       type TEXT, path TEXT, size_bytes INTEGER, notes TEXT
     );
     CREATE TABLE IF NOT EXISTS packages (
-      id TEXT PRIMARY KEY, slug TEXT, manifest_version INTEGER, imported_at TEXT
+      id TEXT PRIMARY KEY, slug TEXT, source_url TEXT,
+      manifest_version INTEGER, imported_at TEXT
     );
   `);
   return db;
@@ -100,7 +107,7 @@ function buildDatabase() {
   const insertCapture = db.prepare(`INSERT INTO captures
     (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
   const insertPackage = db.prepare(`INSERT OR REPLACE INTO packages
-    (id, slug, manifest_version, imported_at) VALUES (?, ?, ?, ?)`);
+    (id, slug, source_url, manifest_version, imported_at) VALUES (?, ?, ?, ?, ?)`);
 
   let count = 0;
   for (const dirent of fs.readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
@@ -128,7 +135,7 @@ function buildDatabase() {
       } catch { /* listed but not downloaded yet */ }
       insertCapture.run(slug, c.type || null, c.path || null, size, c.notes || null);
     }
-    insertPackage.run(id, slug, manifestEntry.version || 1, new Date().toISOString());
+    insertPackage.run(id, slug, e.sourceUrl || null, manifestEntry.version || 1, new Date().toISOString());
     count++;
   }
   db.close();
