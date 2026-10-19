@@ -26,7 +26,7 @@ This repo is not just a landing page. It is the project skeleton for a visual ar
 - `server.js` — the local library server and JSON API
 - `docs/spec.md` — architecture and capture pipeline for the archive
 - `packages/` — package manifest and per-entry package data
-- `scripts/` — database rebuild, WACZ rebuild, and publish utilities
+- `scripts/` — database rebuild, cache rebuild, WACZ rebuild, sidecar, and publish utilities
 - `assets/logo/` — brand/logo assets
 - `LOCALHOST.md` — explanation of how localhost/server behavior works
 - `AGENTS.md` — operating contract and session rules
@@ -60,8 +60,10 @@ Lookout/
 │   └── manifest.json
 ├── scripts/
 │   ├── build-db.ps1
+│   ├── ensure-cache.ps1
 │   ├── publish.ps1
-│   └── rebuild-wacz.ps1
+│   ├── rebuild-wacz.ps1
+│   └── wacz-sidecars.py
 ├── data/                  # generated locally, gitignored
 └── cache/                 # generated locally, gitignored
 ```
@@ -98,9 +100,11 @@ The design in `docs/spec.md` describes the library as a package-based archive:
 - metadata is stored in `entry.json`
 - capture files include single-file HTML, screenshots, and WACZ content
 - the server rebuilds a SQLite database from package data on startup if needed
-- release assets can be separated from git-managed source files for size control
+- git is the only store. There is no download step, and the manifest records only the capture id, slug, path, version, and date
 
-This is a deliberate architecture for large archived website captures without bloating the repo with binary payloads.
+Packages are stored unpacked and plain. The text of `wacz/archive/clean.warc` stays text, and the few binary bodies inside it (fonts, images) are cut out into sidecar files under `wacz/binaries/`. A metadata map, `wacz/container.json`, records where each binary came from, and `scripts/wacz-sidecars.py` writes the bytes back when a `.wacz` is rebuilt.
+
+This is a deliberate architecture for archived website captures that stay readable in git: the archive text diffs and reviews like source, while the binary bodies sit outside it and still reproduce the original capture byte for byte.
 
 ---
 
@@ -109,9 +113,10 @@ This is a deliberate architecture for large archived website captures without bl
 Useful repository scripts live in `scripts/`:
 
 - `build-db.ps1` — rebuild the local database from packages
-- `fetch-assets.ps1` — download package chunks missing from this checkout, then rebuild the local `.wacz`
+- `ensure-cache.ps1` — rebuild the local `cache/<id>.wacz` for any package in this checkout that is missing one
 - `publish.ps1` — validate and publish package updates
-- `rebuild-wacz.ps1` — rebuild WACZ artifacts from archive data
+- `rebuild-wacz.ps1` — rebuild one package's WACZ from its archive data
+- `wacz-sidecars.py` — split binary bodies out of a WARC into sidecars, or assemble and pack them back into a WACZ
 
 ---
 
