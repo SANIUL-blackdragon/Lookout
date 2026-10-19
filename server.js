@@ -64,6 +64,11 @@ function openDb() {
   if (cols.length && !cols.some((c) => c.name === "id")) {
     db.exec("DROP TABLE entries");
   }
+  // The entries table gained colors_json and fonts_json columns. It rebuilds
+  // from disk, so drop the stale table instead of migrating its rows.
+  if (cols.length && !cols.some((c) => c.name === "colors_json")) {
+    db.exec("DROP TABLE IF EXISTS entries");
+  }
   // The packages table gained a source_url column. It rebuilds from disk, so
   // drop the stale table instead of migrating its rows.
   const pkgCols = db.prepare("PRAGMA table_info(packages)").all();
@@ -74,6 +79,7 @@ function openDb() {
     CREATE TABLE IF NOT EXISTS entries (
       id TEXT PRIMARY KEY, slug TEXT UNIQUE, title TEXT, source_url TEXT,
       credits_json TEXT, review TEXT, category TEXT,
+      colors_json TEXT, fonts_json TEXT,
       stack TEXT, date_archived TEXT, version INTEGER
     );
     CREATE TABLE IF NOT EXISTS captures (
@@ -102,8 +108,9 @@ function buildDatabase() {
     // this, a package deleted from packages/ leaves a ghost row behind.
     db.exec("DELETE FROM entries; DELETE FROM captures; DELETE FROM packages;");
     const insertEntry = db.prepare(`INSERT INTO entries
-      (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version,
+       colors_json, fonts_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const clearCaptures = db.prepare("DELETE FROM captures WHERE entry_slug = ?");
     const insertCapture = db.prepare(`INSERT INTO captures
       (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
@@ -129,7 +136,8 @@ function buildDatabase() {
           id, slug, e.title || slug, e.sourceUrl || null,
           JSON.stringify(e.credits || {}), e.review || null,
           e.category || null, e.stack || null, e.dateArchived || null,
-          manifestEntry.version || 1
+          manifestEntry.version || 1,
+          JSON.stringify(e.colors || []), JSON.stringify(e.fonts || [])
         );
         clearCaptures.run(slug);
         for (const c of e.captures || []) {
