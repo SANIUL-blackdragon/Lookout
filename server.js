@@ -97,49 +97,58 @@ function buildDatabase() {
   fs.mkdirSync(PACKAGES_DIR, { recursive: true });
   const manifest = readManifest();
   const db = openDb();
-  // The rebuild mirrors the packages on disk, so start from empty. Without
-  // this, a package deleted from packages/ leaves a ghost row behind.
-  db.exec("DELETE FROM entries; DELETE FROM captures; DELETE FROM packages;");
-  const insertEntry = db.prepare(`INSERT INTO entries
-    (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const clearCaptures = db.prepare("DELETE FROM captures WHERE entry_slug = ?");
-  const insertCapture = db.prepare(`INSERT INTO captures
-    (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
-  const insertPackage = db.prepare(`INSERT OR REPLACE INTO packages
-    (id, slug, source_url, manifest_version, imported_at) VALUES (?, ?, ?, ?, ?)`);
+  try {
+    // The rebuild mirrors the packages on disk, so start from empty. Without
+    // this, a package deleted from packages/ leaves a ghost row behind.
+    db.exec("DELETE FROM entries; DELETE FROM captures; DELETE FROM packages;");
+    const insertEntry = db.prepare(`INSERT INTO entries
+      (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const clearCaptures = db.prepare("DELETE FROM captures WHERE entry_slug = ?");
+    const insertCapture = db.prepare(`INSERT INTO captures
+      (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
+    const insertPackage = db.prepare(`INSERT OR REPLACE INTO packages
+      (id, slug, source_url, manifest_version, imported_at) VALUES (?, ?, ?, ?, ?)`);
 
-  let count = 0;
-  for (const dirent of fs.readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
-    if (!dirent.isDirectory()) continue;
-    const id = dirent.name;
-    if (!validId(id)) continue;
-    const entryPath = path.join(PACKAGES_DIR, id, "entry.json");
-    if (!fs.existsSync(entryPath)) continue;
-    const e = JSON.parse(fs.readFileSync(entryPath, "utf8"));
-    const slug = e.slug;
-    if (!validSlug(slug)) continue;
-    const manifestEntry = manifest.entries.find((x) => x.id === id)
-      || manifest.entries.find((x) => x.slug === slug) || {};
-    insertEntry.run(
-      id, slug, e.title || slug, e.sourceUrl || null,
-      JSON.stringify(e.credits || {}), e.review || null,
-      e.category || null, e.stack || null, e.dateArchived || null,
-      manifestEntry.version || 1
-    );
-    clearCaptures.run(slug);
-    for (const c of e.captures || []) {
-      let size = null;
+    let count = 0;
+    for (const dirent of fs.readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
+      if (!dirent.isDirectory()) continue;
+      const id = dirent.name;
+      if (!validId(id)) continue;
+      const entryPath = path.join(PACKAGES_DIR, id, "entry.json");
+      if (!fs.existsSync(entryPath)) continue;
+      // Name the package in the error, so a bad entry.json points at its
+      // folder instead of surfacing as a bare SQLite binding message.
       try {
-        size = fs.statSync(path.join(PACKAGES_DIR, id, c.path)).size;
-      } catch { /* listed but not downloaded yet */ }
-      insertCapture.run(slug, c.type || null, c.path || null, size, c.notes || null);
+        const e = JSON.parse(fs.readFileSync(entryPath, "utf8"));
+        const slug = e.slug;
+        if (!validSlug(slug)) continue;
+        const manifestEntry = manifest.entries.find((x) => x.id === id)
+          || manifest.entries.find((x) => x.slug === slug) || {};
+        insertEntry.run(
+          id, slug, e.title || slug, e.sourceUrl || null,
+          JSON.stringify(e.credits || {}), e.review || null,
+          e.category || null, e.stack || null, e.dateArchived || null,
+          manifestEntry.version || 1
+        );
+        clearCaptures.run(slug);
+        for (const c of e.captures || []) {
+          let size = null;
+          try {
+            size = fs.statSync(path.join(PACKAGES_DIR, id, c.path)).size;
+          } catch { /* listed but not downloaded yet */ }
+          insertCapture.run(slug, c.type || null, c.path || null, size, c.notes || null);
+        }
+        insertPackage.run(id, slug, e.sourceUrl || null, manifestEntry.version || 1, new Date().toISOString());
+      } catch (err) {
+        throw new Error(`${id}: ${err.message}`);
+      }
+      count++;
     }
-    insertPackage.run(id, slug, e.sourceUrl || null, manifestEntry.version || 1, new Date().toISOString());
-    count++;
+    return { entries: count };
+  } finally {
+    db.close();
   }
-  db.close();
-  return { entries: count };
 }
 
 function sendJson(res, status, obj) {
@@ -203,7 +212,13 @@ function importPackage(id) {
     }
   }
   if (bad.length) return { ok: false, error: "files above 80 MB outside wacz/ or video/", files: bad };
-  buildDatabase();
+  // A bad entry.json makes the rebuild throw. Report it as a rejected import
+  // with the package named, instead of letting it fall through to a 500.
+  try {
+    buildDatabase();
+  } catch (e) {
+    return { ok: false, error: `could not build the database: ${e.message}` };
+  }
   return { ok: true, id };
 }
 
@@ -341,6 +356,9 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(405, { "Content-Type": "text/plain" });
     res.end("method not allowed");
   } catch (e) {
+    // Log first, so the reason survives for the console even when the client
+    // only sees the generic body.
+    console.error(`request failed: ${req.method} ${req.url}:`, e);
     sendJson(res, 500, { error: "server error" });
   }
 });
