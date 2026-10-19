@@ -12,8 +12,11 @@ $Limit = 80MB
 
 if (-not (Test-Path $PkgDir)) { throw "Package dir missing: $PkgDir" }
 if (-not (Test-Path (Join-Path $PkgDir "entry.json"))) { throw "entry.json missing in $PkgDir" }
-$Slug = (Get-Content (Join-Path $PkgDir "entry.json") -Raw | ConvertFrom-Json).slug
+$Entry = Get-Content (Join-Path $PkgDir "entry.json") -Raw | ConvertFrom-Json
+$Slug = $Entry.slug
 if (-not $Slug) { throw "entry.json has no slug." }
+$Title = $Entry.title
+if (-not $Title) { throw "entry.json has no title." }
 
 # No single file may pass the git cap. Every file rides git as a plain file.
 $oversized = Get-ChildItem $PkgDir -Recurse -File | Where-Object { $_.Length -gt $Limit }
@@ -30,6 +33,7 @@ if (-not $entry) {
   $manifest.entries += $entry
 }
 $entry | Add-Member -NotePropertyName slug -NotePropertyValue $Slug -Force
+$entry | Add-Member -NotePropertyName title -NotePropertyValue $Title -Force
 $entry | Add-Member -NotePropertyName version -NotePropertyValue $Version -Force
 $entry | Add-Member -NotePropertyName date -NotePropertyValue (Get-Date -Format o) -Force
 $entry | Add-Member -NotePropertyName path -NotePropertyValue "packages/$Id" -Force
@@ -49,7 +53,8 @@ git -C $Root commit -m "Publish $Slug v$Version" -m @"
 Record $Slug at version $Version in packages/manifest.json.
 
 What changed: the manifest entry for package $Id now carries slug $Slug,
-version $Version, and path packages/$Id. The global manifest version was bumped.
+title $Title, version $Version, and path packages/$Id. The global manifest
+version was bumped.
 
 Why: the capture for $Slug is published as version $Version, so the entry
 version must move and the manifest must record the new state. Other clones
