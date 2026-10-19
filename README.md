@@ -94,7 +94,7 @@ The server binds to `127.0.0.1:3000` and exposes the library API and static file
 
 The design in `docs/spec.md` describes the library as a package-based archive:
 
-- each entry is stored as a package under `packages/<slug>/`
+- each entry is stored as a package under `packages/<id>/`, where `<id>` is the capture timestamp and the slug lives in `entry.json`
 - metadata is stored in `entry.json`
 - capture files include single-file HTML, screenshots, and WACZ content
 - the server rebuilds a SQLite database from package data on startup if needed
