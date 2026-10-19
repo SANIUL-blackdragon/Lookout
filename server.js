@@ -82,14 +82,17 @@ function openDb() {
 }
 
 // Rebuilds every row from packages/*/entry.json plus the manifest.
-// Idempotent: rows for an entry id are replaced, never doubled.
+// The rebuild is authoritative: it clears the tables first, so the database
+// always mirrors exactly the packages present on disk.
 function buildDatabase() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   fs.mkdirSync(PACKAGES_DIR, { recursive: true });
   const manifest = readManifest();
   const db = openDb();
-  const clearEntry = db.prepare("DELETE FROM entries WHERE id = ? OR slug = ?");
+  // The rebuild mirrors the packages on disk, so start from empty. Without
+  // this, a package deleted from packages/ leaves a ghost row behind.
+  db.exec("DELETE FROM entries; DELETE FROM captures; DELETE FROM packages;");
   const insertEntry = db.prepare(`INSERT INTO entries
     (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -111,7 +114,6 @@ function buildDatabase() {
     if (!validSlug(slug)) continue;
     const manifestEntry = manifest.entries.find((x) => x.id === id)
       || manifest.entries.find((x) => x.slug === slug) || {};
-    clearEntry.run(id, slug);
     insertEntry.run(
       id, slug, e.title || slug, e.sourceUrl || null,
       JSON.stringify(e.credits || {}), e.review || null,
