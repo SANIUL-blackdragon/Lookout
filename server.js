@@ -189,8 +189,8 @@ function importPackage(id) {
     for (const f of walkFiles(dirpath)) {
       const rel = path.relative(dir, f);
       const st = fs.statSync(f);
-      const inReleaseZone = rel.startsWith("wacz" + path.sep) || rel.startsWith("video" + path.sep);
-      if (st.size > GIT_FILE_LIMIT && !inReleaseZone) bad.push(rel);
+      const inExemptZone = rel.startsWith("wacz" + path.sep) || rel.startsWith("video" + path.sep);
+      if (st.size > GIT_FILE_LIMIT && !inExemptZone) bad.push(rel);
     }
   }
   if (bad.length) return { ok: false, error: "files above 80 MB outside wacz/ or video/", files: bad };
