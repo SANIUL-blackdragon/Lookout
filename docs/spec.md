@@ -206,7 +206,8 @@ Captures from the blueprint, and publish just keeps the blueprint in git.
 Publish accepts this file set, and nothing else:
 
 - Text: `entry.json`, `manifest.json`, the space-filled WARC, `container.json`,
-  the plain `.cdx` index, `pages.jsonl`.
+  the plain `.cdx` index, the `.idx` key file that `split` produced next to it,
+  and `pages.jsonl`.
 - Images: screenshot shots.
 - Sidecar files under `wacz/binaries/`: covered by the write-once rule in
   section 6, and accepted as plain files up to the size cap.
