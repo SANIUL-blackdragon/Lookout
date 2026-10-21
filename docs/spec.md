@@ -174,6 +174,17 @@ Admin endpoints (local machine only):
 - `POST /api/update/apply` Fetch new Packages and import them.
 - `POST /api/settings` Set a stored owner setting from a JSON object body (`Content-Type: application/json`) and return the full settings. Unknown keys and wrong types are rejected. A setting is an owner choice, not content, so it survives a database rebuild.
 - `POST /api/publish?id=<id>` Run the publish script for one Package, then rebuild the database. Takes no request body. An optional `version` query parameter must be a whole number above zero; without it the server uses the next version. A missing Package answers 404. One publish runs at a time, so a second call answers 409. The script gets 120 seconds before it is killed and the call answers 504.
+- `POST /api/sync?id=<id>` Run the sync script of section 11 for one local
+  Package. With an id the call answers one JSON object for that Package:
+  the id, `ok`, and the script's last 20 output lines. Without an id the
+  server walks every local Package in order and answers one JSON object
+  with `ok` and `results`, one block per id, even with a single Package.
+  Both calls take no request body. A bad id answers 400 and a missing
+  local Package answers 404. A failed call answers 500 with the exit code
+  and the tail, so a killed script answers 500 with a 120-second note
+  instead of 504. One sync runs at a time, and a publish blocks a sync
+  and the other way around, so the second call answers 409. The sweep
+  answers 200 and sets top-level `ok` true only when every block passed.
 
 ## 10. Admin UI and agent contract
 
@@ -225,6 +236,22 @@ shots, or playlists, not as a storage quota.
   runs only where the owner credentials exist. Other machines are read-only.
   It never commits the database file.
 - Auto-update is a toggle in the Library UI. The toggle writes a stored setting through the settings endpoints, so the choice survives server restarts and database rebuilds. When on and network exists, the Library checks the origin manifest on start. New or changed Entries are pulled from git, then import. Users see what changed before it applies.
+
+Sync is the read-back direction of publish. `scripts/sync-package.ps1`
+fetches `origin main`, lists the files the origin tree tracks under the
+Package, and downloads only the ones missing on disk. Files already present
+stay untouched, so local edits stay visible instead of silently rewritten.
+The script then checks every sidecar named in `container.json` against the
+sha recorded there. A drifted sidecar is restored from the published bytes,
+so the outcome always matches the recipe, and a restore never edits a
+Capture. A second mismatch after a restore stops the run, because bytes
+that still disagree with the recipe twice point at data the recipe does not
+record. After the download the script hands off to `scripts/rebuild-wacz.ps1`,
+which packs the WACZ into the gitignored cache directory. Sync runs on any
+machine that holds a checkout and has the network, with no owner
+credentials and no push. It needs a real git checkout with the Package on
+origin, and it hard-stops when the checkout, `container.json`, or the
+rebuilder is missing.
 
 ## 12. License and rights
 

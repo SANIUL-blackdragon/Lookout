@@ -19,6 +19,9 @@ const MAX_ZIP_BYTES = 512 * 1024 * 1024;
 
 // A publish writes git history, so only one may run at a time.
 let publishing = false;
+// A sync reworks the same package files a publish stages, so the two share
+// the busy gate below and never run at the same time.
+let syncing = false;
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -295,6 +298,38 @@ function runPublish(id, version) {
   });
 }
 
+// Runs scripts/sync-package.ps1 for one package. The script pulls missing
+// files from origin, restores drifted sidecars, and repacks the WACZ, all
+// locally and without pushing. Same child-process shape as runPublish so a
+// hung script cannot hold the event loop or the sync gate.
+function runSync(id) {
+  return new Promise((resolve) => {
+    const child = spawn("pwsh", [
+      "-NoProfile", "-File", path.join(ROOT, "scripts", "sync-package.ps1"),
+      "-Id", id,
+    ], { cwd: ROOT });
+    let output = "";
+    const keep = (chunk) => {
+      output = (output + chunk.toString()).slice(-4000);
+    };
+    child.stdout.on("data", keep);
+    child.stderr.on("data", keep);
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ ok: false, code: "timeout", output });
+    }, 120000);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ ok: false, code: "spawn", output: e.message });
+    });
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      if (status === 0) return resolve({ ok: true, output });
+      resolve({ ok: false, code: "exit", status, output });
+    });
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://x");
@@ -404,6 +439,9 @@ const server = http.createServer(async (req, res) => {
       if (publishing) {
         return sendJson(res, 409, { error: "a publish is already running" });
       }
+      if (syncing) {
+        return sendJson(res, 409, { error: "a sync is already running" });
+      }
       publishing = true;
       let result;
       try {
@@ -434,6 +472,70 @@ const server = http.createServer(async (req, res) => {
       const body = { ok: true, id, slug: published ? published.slug || null : null, version, rebuilt };
       if (warning) return sendJson(res, 200, { ...body, warning });
       return sendJson(res, 200, body);
+    }
+
+    // One sync per request. With an id the call syncs that local package;
+    // without one it sweeps every local package. Failures are reported per
+    // package, so one bad package never hides the results of the rest.
+    if (req.method === "POST" && url.pathname === "/api/sync") {
+      const id = url.searchParams.get("id");
+      let ids;
+      if (id === null) {
+        ids = fs.readdirSync(PACKAGES_DIR)
+          .filter((name) => fs.existsSync(path.join(PACKAGES_DIR, name, "wacz", "container.json")));
+        if (ids.length === 0) {
+          return sendJson(res, 404, { error: "no local packages to sync" });
+        }
+      } else {
+        if (!validId(id)) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
+        if (!fs.existsSync(path.join(PACKAGES_DIR, id, "wacz", "container.json"))) {
+          return sendJson(res, 404, { error: "no such local package", id });
+        }
+        ids = [id];
+      }
+      if (publishing) {
+        return sendJson(res, 409, { error: "a publish is already running" });
+      }
+      if (syncing) {
+        return sendJson(res, 409, { error: "a sync is already running" });
+      }
+      syncing = true;
+      let results;
+      try {
+        results = [];
+        for (const one of ids) {
+          const result = await runSync(one);
+          if (result.ok) {
+            const tail = result.output.trimEnd().split(/\r?\n/).slice(-20).join("\n");
+            results.push({ id: one, ok: true, output: tail });
+            continue;
+          }
+          if (result.code === "timeout") {
+            results.push({ id: one, ok: false, error: "sync timed out after 120s" });
+            continue;
+          }
+          if (result.code === "spawn") {
+            results.push({
+              id: one, ok: false,
+              error: "could not start the sync script: " + result.output,
+            });
+            continue;
+          }
+          const tail = result.output.trimEnd().split(/\r?\n/).slice(-20).join("\n");
+          results.push({ id: one, ok: false, error: "sync failed", exit: result.status, output: tail });
+        }
+      } finally {
+        syncing = false;
+      }
+      // A call with an explicit id answers one object for that package.
+      // A sweep always answers the results envelope, even when there is
+      // exactly one local package, so callers can read the shape without
+      // knowing how many packages the local store holds.
+      if (id !== null) {
+        const one = results[0];
+        return sendJson(res, one.ok ? 200 : 500, one);
+      }
+      return sendJson(res, 200, { ok: results.every((r) => r.ok), results });
     }
 
     if (req.method === "POST" && parts[0] === "api" && parts[1] === "packages" && parts.length === 2) {
