@@ -151,6 +151,7 @@ Read endpoints:
 - `GET /api/entries` Entry list as JSON.
 - `GET /api/entries/<id>` One Entry with Captures as JSON.
 - `GET /api/manifest` Manifest as JSON for update checks.
+- `GET /api/settings` Stored owner settings as JSON, currently the auto-update flag.
 
 Admin endpoints (local machine only):
 
@@ -158,6 +159,7 @@ Admin endpoints (local machine only):
 - `POST /api/packages/<id>/import` Import unpacked files into the database.
 - `GET /api/update/check` Compare local manifest with origin.
 - `POST /api/update/apply` Fetch new Packages and import them.
+- `POST /api/settings` Set a stored owner setting from a JSON object body (`Content-Type: application/json`) and return the full settings. Unknown keys and wrong types are rejected. A setting is an owner choice, not content, so it survives a database rebuild.
 
 ## 10. Admin UI and agent contract
 
@@ -181,7 +183,7 @@ already done. Nothing asks the user how it works.
 ## 11. Publish and auto-update
 
 - A PowerShell script (`scripts/publish.ps1`) validates the Package against the 80 MB rule, bumps the manifest, commits the package files, then pushes. It runs only where the owner credentials exist. Other machines are read-only. It never commits the database file.
-- Auto-update is a toggle in the Library UI. When on and network exists, the Library checks the origin manifest on start. New or changed Entries are pulled from git, then import. Users see what changed before it applies.
+- Auto-update is a toggle in the Library UI. The toggle writes a stored setting through the settings endpoints, so the choice survives server restarts and database rebuilds. When on and network exists, the Library checks the origin manifest on start. New or changed Entries are pulled from git, then import. Users see what changed before it applies.
 
 ## 12. License and rights
 

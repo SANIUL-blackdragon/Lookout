@@ -96,8 +96,28 @@ function openDb() {
       id TEXT PRIMARY KEY, slug TEXT, source_url TEXT,
       manifest_version INTEGER, imported_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY, value TEXT
+    );
   `);
   return db;
+}
+
+// Settings are owner choices, not content, so a database rebuild leaves them
+// alone. The rebuild clears entries, captures, and packages only.
+function readSettings(db) {
+  const out = { autoUpdate: false };
+  for (const row of db.prepare("SELECT key, value FROM settings").all()) {
+    if (row.key === "auto_update") out.autoUpdate = row.value === "1";
+  }
+  return out;
+}
+
+function writeSettings(db, settings) {
+  const set = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+  if (typeof settings.autoUpdate === "boolean") {
+    set.run("auto_update", settings.autoUpdate ? "1" : "0");
+  }
 }
 
 // Rebuilds every row from packages/*/entry.json plus the manifest.
@@ -283,6 +303,48 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/manifest") {
       return sendJson(res, 200, readManifest());
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/settings") {
+      const db = openDb();
+      const settings = readSettings(db);
+      db.close();
+      return sendJson(res, 200, settings);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/settings") {
+      const type = (req.headers["content-type"] || "").split(";")[0].trim();
+      if (type !== "application/json") {
+        return sendJson(res, 415, { error: "send a JSON body with Content-Type: application/json" });
+      }
+      let raw;
+      try {
+        raw = await readBody(req, 4096);
+      } catch {
+        return sendJson(res, 413, { error: "body above 4 KB" });
+      }
+      let patch;
+      try {
+        patch = JSON.parse(raw.toString());
+      } catch {
+        return sendJson(res, 400, { error: "body is not valid JSON" });
+      }
+      if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+        return sendJson(res, 400, { error: "send a JSON object" });
+      }
+      const known = ["autoUpdate"];
+      const unknown = Object.keys(patch).filter((key) => !known.includes(key));
+      if (unknown.length) {
+        return sendJson(res, 400, { error: "unknown setting: " + unknown.join(", "), known });
+      }
+      if (typeof patch.autoUpdate !== "boolean") {
+        return sendJson(res, 400, { error: "autoUpdate must be true or false" });
+      }
+      const db = openDb();
+      writeSettings(db, patch);
+      const settings = readSettings(db);
+      db.close();
+      return sendJson(res, 200, settings);
     }
 
     if (req.method === "POST" && parts[0] === "api" && parts[1] === "packages" && parts.length === 2) {
