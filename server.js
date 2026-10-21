@@ -68,6 +68,13 @@ function openDb() {
   if (cols.length && !cols.some((c) => c.name === "colors_json")) {
     db.exec("DROP TABLE IF EXISTS entries");
   }
+  // A recapture keeps the slug and takes a new id, so captures key on the entry
+  // id. The slug also loses its UNIQUE constraint, because two recaptures of one
+  // site share a slug. Both tables rebuild from disk, so drop them together.
+  const captureCols = db.prepare("PRAGMA table_info(captures)").all();
+  if (captureCols.length && !captureCols.some((c) => c.name === "entry_id")) {
+    db.exec("DROP TABLE IF EXISTS captures; DROP TABLE IF EXISTS entries;");
+  }
   // The packages table gained a source_url column. It rebuilds from disk, so
   // drop the stale table instead of migrating its rows.
   const pkgCols = db.prepare("PRAGMA table_info(packages)").all();
@@ -76,13 +83,13 @@ function openDb() {
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS entries (
-      id TEXT PRIMARY KEY, slug TEXT UNIQUE, title TEXT, source_url TEXT,
+      id TEXT PRIMARY KEY, slug TEXT, title TEXT, source_url TEXT,
       credits_json TEXT, review TEXT, category TEXT,
       colors_json TEXT, fonts_json TEXT,
       stack TEXT, date_archived TEXT, version INTEGER
     );
     CREATE TABLE IF NOT EXISTS captures (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, entry_slug TEXT,
+      id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id TEXT,
       type TEXT, path TEXT, size_bytes INTEGER, notes TEXT
     );
     CREATE TABLE IF NOT EXISTS packages (
@@ -110,9 +117,9 @@ function buildDatabase() {
       (id, slug, title, source_url, credits_json, review, category, stack, date_archived, version,
        colors_json, fonts_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    const clearCaptures = db.prepare("DELETE FROM captures WHERE entry_slug = ?");
+    const clearCaptures = db.prepare("DELETE FROM captures WHERE entry_id = ?");
     const insertCapture = db.prepare(`INSERT INTO captures
-      (entry_slug, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
+      (entry_id, type, path, size_bytes, notes) VALUES (?, ?, ?, ?, ?)`);
     const insertPackage = db.prepare(`INSERT OR REPLACE INTO packages
       (id, slug, source_url, manifest_version, imported_at) VALUES (?, ?, ?, ?, ?)`);
 
@@ -138,13 +145,13 @@ function buildDatabase() {
           manifestEntry.version || 1,
           JSON.stringify(e.colors || []), JSON.stringify(e.fonts || [])
         );
-        clearCaptures.run(slug);
+        clearCaptures.run(id);
         for (const c of e.captures || []) {
           let size = null;
           try {
             size = fs.statSync(path.join(PACKAGES_DIR, id, c.path)).size;
           } catch { /* listed but not downloaded yet */ }
-          insertCapture.run(slug, c.type || null, c.path || null, size, c.notes || null);
+          insertCapture.run(id, c.type || null, c.path || null, size, c.notes || null);
         }
         insertPackage.run(id, slug, e.sourceUrl || null, manifestEntry.version || 1, new Date().toISOString());
       } catch (err) {
@@ -267,7 +274,7 @@ const server = http.createServer(async (req, res) => {
       const db = openDb();
       const entry = db.prepare("SELECT * FROM entries WHERE id = ?").get(parts[2]);
       const captures = entry
-        ? db.prepare("SELECT * FROM captures WHERE entry_slug = ?").all(entry.slug)
+        ? db.prepare("SELECT * FROM captures WHERE entry_id = ?").all(entry.id)
         : [];
       db.close();
       if (!entry) return sendJson(res, 404, { error: "unknown entry", id: parts[2] });

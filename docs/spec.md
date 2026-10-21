@@ -132,7 +132,7 @@ SQLite via built-in `node:sqlite`. File: `data/library.db`, gitignored.
 Tables:
 
 - `entries`: id (key), slug (label), title, source URL, credits, review, category, stack, date archived, version.
-- `captures`: id (key), entry slug, type, path, size, notes.
+- `captures`: id (key), entry id, type, path, size, notes.
 - `packages`: id (key), slug, manifest version, import date.
 
 The database is the read source for the Library UI and API.
