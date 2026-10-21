@@ -17,6 +17,9 @@ const PORT = 3000;
 const HOST = "127.0.0.1";
 const MAX_ZIP_BYTES = 512 * 1024 * 1024;
 
+// A publish writes git history, so only one may run at a time.
+let publishing = false;
+
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -260,6 +263,38 @@ function importPackage(id) {
   return { ok: true, id };
 }
 
+// Runs scripts/publish.ps1 for one package. The script validates the files,
+// bumps the manifest, commits, and pushes, so it stays the only writer of a
+// publish. It runs as a child process, which keeps the event loop free for the
+// busy check while the push is in flight.
+function runPublish(id, version) {
+  return new Promise((resolve) => {
+    const child = spawn("pwsh", [
+      "-NoProfile", "-File", path.join(ROOT, "scripts", "publish.ps1"),
+      "-Id", id, "-Version", String(version),
+    ], { cwd: ROOT });
+    let output = "";
+    const keep = (chunk) => {
+      output = (output + chunk.toString()).slice(-4000);
+    };
+    child.stdout.on("data", keep);
+    child.stderr.on("data", keep);
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ ok: false, code: "timeout", output });
+    }, 120000);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ ok: false, code: "spawn", output: e.message });
+    });
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      if (status === 0) return resolve({ ok: true, output });
+      resolve({ ok: false, code: "exit", status, output });
+    });
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://x");
@@ -345,6 +380,60 @@ const server = http.createServer(async (req, res) => {
       const settings = readSettings(db);
       db.close();
       return sendJson(res, 200, settings);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/publish") {
+      const id = url.searchParams.get("id");
+      if (!validId(id)) return sendJson(res, 400, { error: "bad id, want YYYYMMDDHHMMSS" });
+      const rawVersion = url.searchParams.get("version");
+      let version;
+      if (rawVersion === null) {
+        const known = (readManifest().entries || []).find((e) => e.id === id);
+        const current = known && Number.isInteger(known.version) ? known.version : 0;
+        version = current + 1;
+      } else {
+        // Version 0 would never look newer than nothing, so it is refused.
+        if (!/^\d+$/.test(rawVersion) || Number(rawVersion) < 1) {
+          return sendJson(res, 400, { error: "version must be a whole number above zero" });
+        }
+        version = Number(rawVersion);
+      }
+      if (!fs.existsSync(path.join(PACKAGES_DIR, id))) {
+        return sendJson(res, 404, { error: "no such package", id });
+      }
+      if (publishing) {
+        return sendJson(res, 409, { error: "a publish is already running" });
+      }
+      publishing = true;
+      let result;
+      try {
+        result = await runPublish(id, version);
+      } finally {
+        publishing = false;
+      }
+      if (result.code === "timeout") {
+        return sendJson(res, 504, { error: "publish timed out after 120s" });
+      }
+      if (result.code === "spawn") {
+        return sendJson(res, 500, { error: "could not start the publish script: " + result.output });
+      }
+      if (!result.ok) {
+        const tail = result.output.trimEnd().split(/\r?\n/).slice(-20).join("\n");
+        return sendJson(res, 500, { error: "publish failed", exit: result.status, output: tail });
+      }
+      // The push already landed, so the read model has to catch up with it.
+      let rebuilt = true;
+      let warning;
+      try {
+        buildDatabase();
+      } catch (e) {
+        rebuilt = false;
+        warning = "published, but the local database did not rebuild: " + e.message;
+      }
+      const published = (readManifest().entries || []).find((e) => e.id === id);
+      const body = { ok: true, id, slug: published ? published.slug || null : null, version, rebuilt };
+      if (warning) return sendJson(res, 200, { ...body, warning });
+      return sendJson(res, 200, body);
     }
 
     if (req.method === "POST" && parts[0] === "api" && parts[1] === "packages" && parts.length === 2) {

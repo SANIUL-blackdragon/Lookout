@@ -161,6 +161,7 @@ Admin endpoints (local machine only):
 - `GET /api/update/check` Compare local manifest with origin.
 - `POST /api/update/apply` Fetch new Packages and import them.
 - `POST /api/settings` Set a stored owner setting from a JSON object body (`Content-Type: application/json`) and return the full settings. Unknown keys and wrong types are rejected. A setting is an owner choice, not content, so it survives a database rebuild.
+- `POST /api/publish?id=<id>` Run the publish script for one Package, then rebuild the database. Takes no request body. An optional `version` query parameter must be a whole number above zero; without it the server uses the next version. A missing Package answers 404. One publish runs at a time, so a second call answers 409. The script gets 120 seconds before it is killed and the call answers 504.
 
 ## 10. Admin UI and agent contract
 
