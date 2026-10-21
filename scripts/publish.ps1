@@ -18,7 +18,28 @@ if (-not $Slug) { throw "entry.json has no slug." }
 $Title = $Entry.title
 if (-not $Title) { throw "entry.json has no title." }
 
-# No single file may pass the git cap. Every file rides git as a plain file.
+# The repo is a blueprint, not a warehouse. A package may carry text files,
+# screenshot images, and HLS video parts, plus sidecar bytes under
+# wacz/binaries/, which are allowed in any format because split wrote them
+# and their names are sha256 digests. Anything else, a built .wacz, a gzip
+# bundle, a zip, a database, or an executable, must stay out of git.
+$allowed = "json", "jsonl", "html", "warc", "cdx", "idx", "png", "jpg", "jpeg", "webp", "ts", "m3u8"
+$pkgBase = $PkgDir.Replace("/", "\")
+$wrongFiles = @()
+foreach ($file in Get-ChildItem $PkgDir -Recurse -File) {
+  $rel = $file.FullName.Substring($pkgBase.Length).Replace("\", "/").TrimStart("/")
+  if ($rel -like "wacz/binaries/*") { continue }
+  if ($allowed -notcontains ($file.Extension.ToLowerInvariant()).TrimStart(".")) {
+    $wrongFiles += $rel
+  }
+}
+if ($wrongFiles) {
+  $wrongFiles | ForEach-Object { Write-Host "REFUSED TYPE: $_" }
+  throw "Publish refused $($wrongFiles[0]). It is not part of the sanctioned file set. Re-run split if the package is stale, or leave the file out of the package."
+}
+
+# No single file may pass the git cap. Read the cap as a mischief guard
+# against oversized images and studio accidents, not as a budget.
 $oversized = Get-ChildItem $PkgDir -Recurse -File | Where-Object { $_.Length -gt $Limit }
 if ($oversized) {
   $oversized | ForEach-Object { Write-Host "OVER LIMIT: $($_.FullName) ($([math]::Round($_.Length / 1MB, 1)) MB)" }
