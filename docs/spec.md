@@ -131,9 +131,10 @@ SQLite via built-in `node:sqlite`. File: `data/library.db`, gitignored.
 
 Tables:
 
-- `entries`: id (key), slug (label), title, source URL, credits, review, category, stack, date archived, version.
+- `entries`: id (key), slug (label), title, source URL, credits, review, category, colors, fonts, stack, date archived, version.
 - `captures`: id (key), entry id, type, path, size, notes.
-- `packages`: id (key), slug, manifest version, import date.
+- `packages`: id (key), slug, source URL, manifest version, import date.
+- `settings`: key (key), value. Owner choices, which a rebuild leaves alone.
 
 The database is the read source for the Library UI and API.
 `entry.json` files plus the manifest are the import source of truth.
