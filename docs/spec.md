@@ -41,9 +41,10 @@ review text, category, colors, fonts, stack, date archived, crawl scope
 (seed URLs, depth, page count, tool versions), the Capture list with paths,
 and a rights block (signals found, date checked, basis for archiving).
 
-No single file in git may pass 80 MB. The Admin UI and the publish script
-reject any Package that breaks the rule. Every file, text or binary, rides
-git as a plain file.
+No single file tracked by git may pass 80 MB. The publish script checks the
+package before it commits and refuses to track a file that breaks the rule.
+Uploading a package carries no size gate, because the server unpacks it and
+builds the metadata. Every file, text or binary, rides git as a plain file.
 
 ## 5. Capture pipeline
 
@@ -168,7 +169,8 @@ Contract rules:
 
 - Every control carries a stable `data-testid`.
 - Every action has a JSON endpoint twin from section 9.
-- Uploads validate the 80 MB per-file rule and report failures per file.
+- Uploads carry no per-file size gate. The server unpacks the ZIP and reports
+  a bad entry.json or a failed database build.
 
 Autonomy rule: the user only takes three actions. Add a site, press publish,
 flip auto-update. Scripts own everything behind the curtain: chunk naming,

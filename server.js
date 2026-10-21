@@ -16,7 +16,6 @@ const MANIFEST_PATH = path.join(PACKAGES_DIR, "manifest.json");
 const PORT = 3000;
 const HOST = "127.0.0.1";
 const MAX_ZIP_BYTES = 512 * 1024 * 1024;
-const GIT_FILE_LIMIT = 80 * 1024 * 1024;
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -224,16 +223,6 @@ function importPackage(id) {
   const dir = path.join(PACKAGES_DIR, id);
   const entryPath = path.join(dir, "entry.json");
   if (!fs.existsSync(entryPath)) return { ok: false, error: "entry.json missing" };
-  const bad = [];
-  for (const dirpath of [dir]) {
-    for (const f of walkFiles(dirpath)) {
-      const rel = path.relative(dir, f);
-      const st = fs.statSync(f);
-      const inExemptZone = rel.startsWith("wacz" + path.sep) || rel.startsWith("video" + path.sep);
-      if (st.size > GIT_FILE_LIMIT && !inExemptZone) bad.push(rel);
-    }
-  }
-  if (bad.length) return { ok: false, error: "files above 80 MB outside wacz/ or video/", files: bad };
   // A bad entry.json makes the rebuild throw. Report it as a rejected import
   // with the package named, instead of letting it fall through to a 500.
   try {
@@ -242,16 +231,6 @@ function importPackage(id) {
     return { ok: false, error: `could not build the database: ${e.message}` };
   }
   return { ok: true, id };
-}
-
-function walkFiles(dir) {
-  const out = [];
-  for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, d.name);
-    if (d.isDirectory()) out.push(...walkFiles(full));
-    else out.push(full);
-  }
-  return out;
 }
 
 const server = http.createServer(async (req, res) => {
