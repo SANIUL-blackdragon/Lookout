@@ -12,7 +12,8 @@ Functionality comes first. Visual design of the Library itself comes second.
 
 - No public write access. Only the repo owner publishes.
 - No paid storage or services. Total spend is zero.
-- No Git LFS. No second store. Binaries ride in git as plain files.
+- No Git LFS. No second store. The repo is a blueprint, not a warehouse: publish
+  commits text, images, video segments, and sidecar bytes only (section 11).
 - No admin styling pass. The Admin UI must work, not shine.
 
 ## 3. Terms
@@ -43,8 +44,9 @@ and a rights block (signals found, date checked, basis for archiving).
 
 No single file tracked by git may pass 80 MB. The publish script checks the
 package before it commits and refuses to track a file that breaks the rule.
-Uploading a package carries no size gate, because the server unpacks it and
-builds the metadata. Every file, text or binary, rides git as a plain file.
+Read the cap as a mischief guard against oversized images and studio
+accidents, not as a budget. Uploading a package carries no size gate, because
+the server unpacks it and builds the metadata.
 
 ## 5. Capture pipeline
 
@@ -82,8 +84,9 @@ the `.wacz` from these files, reinjecting the sidecar binaries at their
 recorded offsets, into the gitignored cache before viewing. Git is the only
 store, so nothing uploads anywhere.
 
-Binaries (font and image sidecars, video segments) ride in git as plain files
-next to the metadata that describes them. No Release, no LFS, no second store.
+Binaries (screenshot shots, font and image sidecars, video segments) ride in
+git as plain files next to the metadata that describes them. No Release, no
+LFS, no second store.
 
 The database file never enters git either. It is a build output. The committed
 sources of truth are the `entry.json` files plus the manifest. First run builds
@@ -117,6 +120,15 @@ Only binary bodies move. Text bodies stay inline in the WARC. `split` also
 unpacks `indexes/*.cdx.gz` to a plain `.cdx`. `assemble` reads each region,
 checks its length and `sha256`, and writes the sidecar bytes back at `offset`,
 so the result matches the original WARC.
+
+Sidecar files are write-once. `split` creates them at capture time, and the
+pipeline never edits them afterward. No re-encoding, no resizing, no cleanup.
+The few sidecar bytes are the only files in the package that hold the real
+page bodies, and the exact rebuild depends on them staying byte for byte
+identical to capture day. `container.json` pins every sidecar `sha256`, so
+any edit makes the rebuild refuse the package instead of silently producing
+a different WARC. Deleting or rewriting a sidecar is a capture edit, not a
+storage tweak, and it only happens through a new Capture with a new id.
 
 ## 7. Replay
 
@@ -184,7 +196,33 @@ already done. Nothing asks the user how it works.
 
 ## 11. Publish and auto-update
 
-- A PowerShell script (`scripts/publish.ps1`) validates the Package against the 80 MB rule, bumps the manifest, commits the package files, then pushes. It runs only where the owner credentials exist. Other machines are read-only. It never commits the database file.
+The repo is a blueprint, not a warehouse. Git holds the recipe for rebuilding
+everything, not every readable copy of it. The package on disk carries text,
+images, video segments, and sidecar bytes. Everything that is itself a build
+output stays out of git: the rebuilt `.wacz` zip, the concatenated cache, and
+the database file. Any machine that owns the notes can rebuild the complete
+Captures from the blueprint, and publish just keeps the blueprint in git.
+
+Publish accepts this file set, and nothing else:
+
+- Text: `entry.json`, `manifest.json`, the space-filled WARC, `container.json`,
+  the plain `.cdx` index, `pages.jsonl`.
+- Images: screenshot shots.
+- Sidecar files under `wacz/binaries/`: covered by the write-once rule in
+  section 6, and accepted as plain files up to the size cap.
+- Video segments: `.ts` segments and `.m3u8` playlists.
+
+Publish refuses anything else: built `.wacz` zip files, WARC or CDX gzip
+bundles, zip archives made by something else, database binaries, and
+executables. `scripts/publish.ps1` checks the list before it stages a file
+and points at the first file that breaks it. The check is a size and type
+gate, so the 80 MB rule reappears here as a guard against oversized images,
+shots, or playlists, not as a storage quota.
+
+- A PowerShell script (`scripts/publish.ps1`) validates the Package against
+  this set, bumps the manifest, commits the package files, then pushes. It
+  runs only where the owner credentials exist. Other machines are read-only.
+  It never commits the database file.
 - Auto-update is a toggle in the Library UI. The toggle writes a stored setting through the settings endpoints, so the choice survives server restarts and database rebuilds. When on and network exists, the Library checks the origin manifest on start. New or changed Entries are pulled from git, then import. Users see what changed before it applies.
 
 ## 12. License and rights
